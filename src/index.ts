@@ -1,9 +1,11 @@
+type MessageCallback =  (args: any) => void;
+type Channel = Record<string, Record<string, MessageCallback>>;
 class QSocket {
   host: string;
   onsuccess: (args: Event) => void;
   onerror: (args: Event) => void;
   protocol: string;
-  channels: { [key: string]: { [key: string]: (args: any) => void } };
+  channels: Channel;
   closing: boolean;
   ws: WebSocket | null;
   connected: boolean;
@@ -49,8 +51,13 @@ class QSocket {
         this.onsuccess(evt);
       }
     };
-    ws.onclose = () => {
+    ws.onclose = (e : CloseEvent) => {
+      console.log("Socket closed", e.code);
       this.connected = false;
+      if(e.code == 4401 || e.code == 4403){
+        this.onerror(e);
+        return;
+      }
       if (pingInterval) {
         clearInterval(pingInterval);
       }
@@ -111,24 +118,27 @@ export default class Notification {
   #qsocket: QSocket | null;
   #onsuccess: (args: Event) => void;
   #onerror: (args: Event) => void;
-  #Local: { [key: string]: { [key: string]: (args: any) => void } };
+  #Local: Channel;
+  #path: string;
   constructor(
     onsuccess = () => {
       return;
     },
     onerror = () => {
       return;
-    }
+    },
+    path:string
   ) {
     this.#qsocket = null;
     this.#onsuccess = onsuccess;
     this.#onerror = onerror;
     this.#Local = {};
+    this.#path = path || (window.location.host + '/api/ws');
   }
 
   private init(){
     return new QSocket(
-      window.location.host + "/api/ws",
+      this.#path,
       this.#onsuccess,
       this.#onerror
     );
@@ -141,6 +151,9 @@ export default class Notification {
     this.#qsocket.subscribe<T>(channel, event, (e: T) => {
       callback(e);
     });
+    if(!this.#qsocket.connected){
+      this.#qsocket.open();
+    }
     if (!this.#Local[channel]) {
       this.#Local[channel] = {};
     }
