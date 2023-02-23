@@ -127,7 +127,7 @@ export default class Notification {
     onerror = () => {
       return;
     },
-    path:string
+    path:string = ""
   ) {
     this.#qsocket = null;
     this.#onsuccess = onsuccess;
