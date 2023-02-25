@@ -1,70 +1,60 @@
-type MessageCallback =  (args: any) => void;
+type MessageCallback = (args: any) => void;
 type Channel = Record<string, Record<string, MessageCallback>>;
 class QSocket {
   host: string;
   onsuccess: (args: Event) => void;
   onerror: (args: Event) => void;
-  protocol: string;
-  channels: Channel;
-  closing: boolean;
-  ws: WebSocket | null;
-  connected: boolean;
-  reconnectTimeout: number;
+  protocol: string = "wss://";
+  channels: Channel = {};
+  closing: boolean = false;
+  ws: WebSocket | null = null;
+  reconnectTimeout: number = 1;
   constructor(
     host: string,
     onsuccess: (args: Event) => void,
     onerror: (args: Event) => void,
-    protocol: string | null = null
   ) {
-    this.channels = {};
+    this.host = host;
     this.onerror = onerror;
     this.onsuccess = onsuccess;
-    this.closing = false;
-    this.reconnectTimeout = 1;
-    this.ws = null;
-    this.connected = false;
-    this.host = host;
-    if (protocol == null) {
-      protocol = "wss://";
-      if (window.location.protocol == "http:") {
-        protocol = "ws://";
-      }
+
+    if (window.location.protocol == "http:") {
+      this.protocol = "ws://";
     }
-    this.protocol = protocol;
     this.open();
   }
   open() {
+    this.closing = false;
     let pingInterval: number | undefined;
-    this.ws = null;
     const ws = new WebSocket(this.protocol + this.host);
+    this.ws = ws;
     ws.onopen = (evt) => {
       if (!pingInterval) {
         pingInterval = setInterval(() => {
           if (ws.readyState != ws.OPEN) {
             clearInterval(pingInterval);
+            // let 1 send trough to trigger err?
           }
           ws.send("");
         }, 10000);
       }
-      this.connected = true;
       if (this.onsuccess) {
         this.onsuccess(evt);
       }
     };
-    ws.onclose = (e : CloseEvent) => {
+    ws.onclose = (e: CloseEvent) => {
       console.log("Socket closed", e.code);
-      this.connected = false;
-      if(e.code == 4401 || e.code == 4403){
-        this.onerror(e);
-        return;
-      }
       if (pingInterval) {
         clearInterval(pingInterval);
+      }
+      if (e.code == 4401 || e.code == 4403) { // == .close(), socket should be closed
+        this.closing = true;
+        this.onerror(e);
+        return;
       }
       if (this.closing) {
         return;
       }
-      this.closing = false;
       setTimeout(() => {
         this.open();
         if (this.reconnectTimeout < 8192) {
@@ -90,7 +80,6 @@ class QSocket {
       }
       console.log("Socket error", evt);
     };
-    this.ws = ws;
   }
   subscribe<T>(channel: string, event: string, callback: (args: T) => void) {
     if (!this.channels[channel]) {
@@ -127,7 +116,7 @@ export default class Notification {
     onerror = () => {
       return;
     },
-    path:string = ""
+    path: string = ""
   ) {
     this.#qsocket = null;
     this.#onsuccess = onsuccess;
@@ -136,7 +125,7 @@ export default class Notification {
     this.#path = path || (window.location.host + '/api/ws');
   }
 
-  private init(){
+  private init() {
     return new QSocket(
       this.#path,
       this.#onsuccess,
@@ -148,10 +137,11 @@ export default class Notification {
     if (!this.#qsocket) {
       this.#qsocket = this.init();
     }
+    // this.#qsocket.reconnectTimeout = 1; // we just resubscribed, we cleary want socket to be open
     this.#qsocket.subscribe<T>(channel, event, (e: T) => {
       callback(e);
     });
-    if(!this.#qsocket.connected){
+    if (this.#qsocket.closing) {
       this.#qsocket.open();
     }
     if (!this.#Local[channel]) {
