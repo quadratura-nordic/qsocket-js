@@ -104,11 +104,11 @@ class QSocket {
 }
 
 export default class Notification {
-  #qsocket: QSocket | null;
-  #onsuccess: (args: Event) => void;
-  #onerror: (args: Event) => void;
-  #Local: Channel;
-  #path: string;
+  _qsocket: QSocket | null;
+  _onsuccess: (args: Event) => void;
+  _onerror: (args: Event) => void;
+  _Local: Channel;
+  _path: string;
   constructor(
     onsuccess = () => {
       return;
@@ -118,59 +118,59 @@ export default class Notification {
     },
     path: string = ""
   ) {
-    this.#qsocket = null;
-    this.#onsuccess = onsuccess;
-    this.#onerror = onerror;
-    this.#Local = {};
-    this.#path = path || (window.location.host + '/api/ws');
+    this._qsocket = null;
+    this._onsuccess = onsuccess;
+    this._onerror = onerror;
+    this._Local = {};
+    this._path = path || (window.location.host + '/api/ws');
   }
 
   private init() {
     return new QSocket(
-      this.#path,
-      this.#onsuccess,
-      this.#onerror
+      this._path,
+      this._onsuccess,
+      this._onerror
     );
   }
 
   subscribe<T>(channel: string, event: string, callback: (args: T) => void) {
-    if (!this.#qsocket) {
-      this.#qsocket = this.init();
+    if (!this._qsocket) {
+      this._qsocket = this.init();
     }
-    // this.#qsocket.reconnectTimeout = 1; // we just resubscribed, we cleary want socket to be open
-    this.#qsocket.subscribe<T>(channel, event, (e: T) => {
+    // this._qsocket.reconnectTimeout = 1; // we just resubscribed, we cleary want socket to be open
+    this._qsocket.subscribe<T>(channel, event, (e: T) => {
       callback(e);
     });
-    if (this.#qsocket.closing) {
-      this.#qsocket.open();
+    if (this._qsocket.closing) {
+      this._qsocket.open();
     }
-    if (!this.#Local[channel]) {
-      this.#Local[channel] = {};
+    if (!this._Local[channel]) {
+      this._Local[channel] = {};
     }
-    this.#Local[channel][event] = callback;
+    this._Local[channel][event] = callback;
   }
 
   message(channel: string, event: string, content: string) {
-    if (!this.#qsocket) {
-      this.#qsocket = this.init();
+    if (!this._qsocket) {
+      this._qsocket = this.init();
     }
-    this.#qsocket.send({ channel, event, content });
+    this._qsocket.send({ channel, event, content });
   }
 
   unsubscribe(channel: string) {
-    if (this.#qsocket) {
-      this.#qsocket.unsubscribe(channel);
+    if (this._qsocket) {
+      this._qsocket.unsubscribe(channel);
     }
   }
 
   notify(channel: string, event: string, e = null) {
-    if (this.#Local[channel] && this.#Local[channel][event]) {
-      this.#Local[channel][event](e);
+    if (this._Local[channel] && this._Local[channel][event]) {
+      this._Local[channel][event](e);
     }
   }
   close() {
-    if (this.#qsocket) {
-      this.#qsocket.close();
+    if (this._qsocket) {
+      this._qsocket.close();
     }
   }
 }
