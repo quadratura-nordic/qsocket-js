@@ -157,7 +157,7 @@ export default class Notification {
     this.#qsocket.send({ channel, event, content });
   }
 
-  unsubscrbe(channel: string) {
+  unsubscribe(channel: string) {
     if (this.#qsocket) {
       this.#qsocket.unsubscribe(channel);
     }
